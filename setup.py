@@ -1,21 +1,25 @@
-# setup.py
-
 from setuptools import setup, find_packages
 
 setup(
     name='preciseLake',
-    version='1.0.0',
-    description='A code health analysis and optimization feedback tool',
-    long_description=open('README.md').read(),
-    long_description_content_type='text/markdown',
-    url='https://github.com/shreyashree00015/preciseLake',
-    author='Shreya Shree S',
-    author_email='shreyashree00015@gmail.com',
-    license='MIT',
+    version='0.1.0',
     packages=find_packages(),
     install_requires=[
+        'PyQt5',
+        'networkx',
         'matplotlib',
     ],
+    entry_points={
+        'console_scripts': [
+            'preciseLake=preciseLake.preciseLake:main',
+        ],
+    },
+    author='Your Name',
+    author_email='your.email@example.com',
+    description='A code health analyzer that checks for various code issues and visualizes the code structure.',
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
+    url='https://github.com/yourusername/preciseLake',
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
