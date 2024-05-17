@@ -1,14 +1,17 @@
-
+# preciseLake.py
 
 import ast
 import time
-start_time = time.time()
-# from memory_profiler import memory_usage
 import tracemalloc
 import pyflakes.api
 import pyflakes.messages
 import sys
-from PyQt5.QtWidgets import QApplication, QPushButton, QFileDialog
+from PyQt5.QtWidgets import QApplication, QFileDialog
+import networkx as nx
+import matplotlib.pyplot as plt
+import importlib.util
+import inspect
+from matplotlib import cm
 
 def estimate_memory_usage(code):
     tracemalloc.start()
@@ -20,6 +23,7 @@ def estimate_memory_usage(code):
         return total_memory / (1024 * 1024)
     finally:
         tracemalloc.stop()
+
 def write_memory_usage_to_file(code, output_file, execution_time):
     memory_usage = estimate_memory_usage(code)
     with open(output_file, 'a+') as file:
@@ -42,7 +46,6 @@ def analyze_code(code):
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
             unused_variables.discard(node.id)
-    # Rule 2: Identify inefficient algorithms (e.g., nested loops)
     inefficient_patterns = []
     for node in ast.walk(tree):
         if isinstance(node, ast.For) and isinstance(node.iter, ast.Call):
@@ -53,7 +56,6 @@ def analyze_code(code):
                         break
     return unused_variables, inefficient_patterns
 
-#Rule 3: Identify unused functions
 def find_unused_code(code):
     tree = ast.parse(code)
     used_functions = set()
@@ -67,7 +69,6 @@ def find_unused_code(code):
                 unused_functions.add(node.name)
     return unused_functions
 
-#Rule 4: Identify non-terminating functions
 def find_non_terminating_functions(code):
     tree = ast.parse(code)
     non_terminating_functions = set()
@@ -82,7 +83,6 @@ def find_non_terminating_functions(code):
                 has_non_terminating_constructs(child_node)
     return non_terminating_functions, tree
 
-#Rule 5: Identify method overrides
 def find_method_overrides(file_path):
     with open(file_path, 'r') as file:
         code = file.read()
@@ -95,7 +95,7 @@ def find_method_overrides(file_path):
     for class_name, class_node in class_definitions.items():
         base_classes = [base.id for base in class_node.bases if isinstance(base, ast.Name)]
         for base_class in base_classes:
-            if base_class in class_definitions:
+            if (base_class in class_definitions):
                 base_class_node = class_definitions[base_class]
                 for base_method in base_class_node.body:
                     if isinstance(base_method, ast.FunctionDef):
@@ -104,7 +104,6 @@ def find_method_overrides(file_path):
                                 overridden_methods[method.name] = (base_class, class_name)
     return overridden_methods
 
-#Rule 6: Detect redundant calculations
 def extract_source_lines(node):
     if hasattr(node, 'lineno'):
         return node.lineno
@@ -121,7 +120,7 @@ def visit_BinOp(node, calculations, redundant_calculations):
         else:
             calculations[expr_hash] = node
 
-def detect_redundant_calculations(code,i):
+def detect_redundant_calculations(code, i):
     calculations = {}
     redundant_calculations = []
     tree = ast.parse(code)
@@ -129,8 +128,8 @@ def detect_redundant_calculations(code,i):
         if isinstance(node, ast.BinOp):
             visit_BinOp(node, calculations, redundant_calculations)
     if redundant_calculations:
-        i+=1
-        print(str(i)+". Redundant calculations detected:")
+        i += 1
+        print(str(i) + ". Redundant calculations detected:")
         for expr1, expr2 in redundant_calculations:
             line1 = extract_source_lines(expr1)
             line2 = extract_source_lines(expr2)
@@ -139,12 +138,8 @@ def detect_redundant_calculations(code,i):
             print()
             print("==============================================")
             print()
-            
-    else:
-        i+=0
-        # print("No redundant calculations detected.")
     return i
-#Rule 7: Detect unused imports
+
 def detect_unused_imports(code):
     try:
         result = pyflakes.api.check(code, '')
@@ -152,14 +147,10 @@ def detect_unused_imports(code):
             return []
         unused_imports = [issue.message for issue in result if isinstance(issue, pyflakes.messages.UnusedImport)]
         return unused_imports
-    
     except Exception as e:
         print(f"Error occurred during analysis: {e}")
         return []
 
-
-
-#Rule 8: Detect high memory components
 def high_memory_components(code):
     tree = ast.parse(code)
     memory_intensive_components = []
@@ -174,174 +165,122 @@ def high_memory_components(code):
                 memory_intensive_components.append(('Data Structure', node.lineno))
     return memory_intensive_components
 
-# Analyze the code
-
-def select_file():
-    app = QApplication(sys.argv)
-    file_path, _ = QFileDialog.getOpenFileName(None, "Select a file")
-    app.quit()
-    return file_path
-
-file_path = select_file()
-
-
-with open(file_path, 'r') as file:
-    code = file.read()
-unused_variables, inefficient_patterns = analyze_code(code)
-unused_functions = find_unused_code(code)
-non_terminating_functions, tree = find_non_terminating_functions(code)
-overridden_methods = find_method_overrides(file_path)
-components = high_memory_components(code)
-
-# Print the results
-print("Precise Lake: Code Health Analysis and Optimisation Feedback Mechanism\n")
-print("Detected areas to optimize")
-i =0
-print()
-print()
-print("==============================================")
-if unused_variables:
-    i+=1
-    print(str(i)+". Unused variables:", unused_variables)
-    print()
-    
-    print("==============================================")
-    print()
-
-# #unused funcs
-if unused_functions:
-    i+=1
-    print(str(i)+". Unused functions:", unused_functions)
-    print()
-    print("==============================================")
-    print()
-
-
-
-# inefficient_patterns
-if inefficient_patterns:
-    i+=1
-    print(str(i)+". Inefficient patterns:")
-    for line_number, issue_description, node in inefficient_patterns:
-        print(f"Line {line_number}: {issue_description}")
-        print(ast.unparse(node).strip())
-        print()
-    print("==============================================")
-    print()
-    
-# non terminating functions
-for while_node in non_terminating_functions:
-    for parent in ast.walk(tree):
-        if isinstance(parent, ast.FunctionDef) and while_node in ast.walk(parent):
-            i+=1
-            print(str(i)+". Potentially non-terminating function:",parent.name)
-            break
-    print()
-    print("==============================================")
-    print()
-    
-# #overridden methods
-if overridden_methods:
-    i+=1
-    print(str(i)+". Method overrides:")
-    for method_name, (base_class, subclass) in overridden_methods.items():
-        print(f"Method '{method_name}' is overridden in class '{subclass}' from class '{base_class}'")
-    print()
-    print("==============================================")
-    print()
-
-#redundant
-i = detect_redundant_calculations(code,i)
-
-# unused imports
-unused_imports = detect_unused_imports(code)
-i+=1
-print(str(i)+'. Unused Imports detected')
-print()
-print("==============================================")
-print()
-#memory extensive components
-if components:
-    i+=1
-    print(str(i)+". Potential memory-intensive components detected:")
-    for component_type, line_number in components:
-        print(f"Type: {component_type}, Line: {line_number}")
-    print()
-    print("==============================================")
-    print()  
-
-end_time = time.time()
-execution_time = end_time - start_time
-output_file = "memory_usage.txt"
-write_memory_usage_to_file(code, output_file, execution_time)
-print('Find your memory usage and time taken in', output_file)
-print("The number of issues detected: ",i)
-
-
-import ast
-import importlib
-import inspect
-import networkx as nx
-from matplotlib import cm
-import matplotlib.pyplot as plt
 def code_to_graph(file_path):
-  """Imports a Python file as a module, creates an AST, and builds a networkx graph."""
-  try:
-    # Extract module name from file path
-    module_name = file_path.split("/")[-1].split(".")[0]
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        module_name = file_path.split("/")[-1].split(".")[0]
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
 
-    # Get source code from the imported module
-    source_code = inspect.getsource(module)
+        source_code = inspect.getsource(module)
+        tree = ast.parse(source_code)
+        G = nx.DiGraph()
+        cmap = cm.get_cmap('tab20')
 
-    tree = ast.parse(source_code)
+        def traverse(node, parent=None):
+            if parent:
+                G.add_edge(parent.__class__.__name__, node.__class__.__name__)
+            nodes.append(node.__class__.__name__)
+            color = cmap(len(nodes) / len(tree.body))
+            G.add_node(node.__class__.__name__, color=color)
+            for child in ast.iter_child_nodes(node):
+                traverse(child, node)
 
-    # Create a networkx graph
-    G = nx.DiGraph()
-    cmap = cm.get_cmap('tab20')  # Select a colormap for nodes
+        nodes = []
+        traverse(tree)
+        return G
+    except (ImportError, FileNotFoundError) as e:
+        print(f"Error: {e}")
+        return None
 
-    def traverse(node, parent=None):
-      if parent:
-        G.add_edge(parent.__class__.__name__, node.__class__.__name__)
-      nodes.append(node.__class__.__name__)
-      color = cmap(len(nodes) / len(tree.body))  # Assign color based on node position
-      G.add_node(node.__class__.__name__, color=color)  # Add node with color
-      for child in ast.iter_child_nodes(node):
-        traverse(child, node)
+def main():
+    def select_file():
+        app = QApplication(sys.argv)
+        file_path, _ = QFileDialog.getOpenFileName(None, "Select a file")
+        app.quit()
+        return file_path
 
-    nodes = []
-    traverse(tree)
-    return G
-  except (ImportError, FileNotFoundError) as e:
-    print(f"Error: {e}")
-    return None
+    file_path = select_file()
+    
+    with open(file_path, 'r') as file:
+        code = file.read()
 
-# Example usage (replace 'path/to/your/file.py' with your actual file path)
-graph = code_to_graph(file_path)
+    start_time = time.time()
+    unused_variables, inefficient_patterns = analyze_code(code)
+    unused_functions = find_unused_code(code)
+    non_terminating_functions, tree = find_non_terminating_functions(code)
+    overridden_methods = find_method_overrides(file_path)
+    components = high_memory_components(code)
+    end_time = time.time()
+    execution_time = end_time - start_time
 
-if graph:
-  # Simple layout for visualization (you can use other layout algorithms)
-  pos = nx.spring_layout(graph)
+    print("Precise Lake: Code Health Analysis and Optimisation Feedback Mechanism\n")
+    print("Detected areas to optimize")
+    i = 0
+    i += 1
+    if unused_variables:
+        print(f"{i}. Unused variables: {unused_variables}")
+        print()
+        print("==============================================")
+        print()
 
-  # Visualization with colorful nodes using matplotlib
-  import matplotlib.pyplot as plt
-  plt.figure(figsize=(25, 15))
-  nx.draw(graph, pos, with_labels=True, font_weight='bold', node_color=[c[1] for c in graph.nodes(data='color')])
-  plt.show()
-else:
-  print("Failed to process the file.")
+    i += 1
+    if inefficient_patterns:
+        print(f"{i}. Inefficient patterns:")
+        for line, message, pattern in inefficient_patterns:
+            print(f"{message} at line {line}")
+            print(ast.dump(pattern))
+            print()
+            print("==============================================")
+            print()
+        
+    i += 1
+    if unused_functions:
+        print(f"{i}. Unused functions: {unused_functions}")
+        print()
+        print("==============================================")
+        print()
 
-# Function to display node information on hover (replace with your logic)
-def on_hover(event):
-    if event.artist.get_clickable():
-        node_id = event.artist.get_label()
-        # Access graph data structure to get node info (replace with your logic)
-        node_info = graph.nodes[node_id]
-        print(f"Node: {node_id}\nDetails: {node_info}")
+    i += 1
+    if non_terminating_functions:
+        print(f"{i}. Non-terminating functions: {non_terminating_functions}")
+        print()
+        print("==============================================")
+        print()
 
-fig = plt.gcf()
-fig.canvas.mpl_connect('button_press_event', on_hover)
-plt.show()
+    i += 1
+    if overridden_methods:
+        print(f"{i}. Overridden methods: {overridden_methods}")
+        print()
+        print("==============================================")
+        print()
 
+    i += 1
+    if components:
+        print(f"{i}. High memory components: {components}")
+        print()
+        print("==============================================")
+        print()
+
+    i = detect_redundant_calculations(code, i)
+    i += 1
+    if detect_unused_imports(code):
+        print(f"{i}. Unused imports: {detect_unused_imports(code)}")
+        print()
+        print("==============================================")
+        print()
+        
+    graph = code_to_graph(file_path)
+    if graph:
+        pos = nx.spring_layout(graph)
+        plt.figure(figsize=(25, 15))
+        nx.draw(graph, pos, with_labels=True, font_weight='bold', node_color=[c[1] for c in graph.nodes(data='color')])
+        plt.show()
+    
+    output_file = "memory_usage.txt"
+    write_memory_usage_to_file(code, output_file, execution_time)
+    print(f'Find your memory usage and time taken in {output_file}')
+    print(f"The number of issues detected: {len(unused_variables) + len(inefficient_patterns) + len(unused_functions) + len(non_terminating_functions) + len(overridden_methods) + len(components)}")
+
+if __name__ == '__main__':
+    main()
