@@ -273,7 +273,7 @@ if components:
 end_time = time.time()
 execution_time = end_time - start_time
 output_file = "memory_usage.txt"
-# write_memory_usage_to_file(code, output_file, execution_time)
+write_memory_usage_to_file(code, output_file, execution_time)
 print('Find your memory usage and time taken in', output_file)
 print("The number of issues detected: ",i)
 
